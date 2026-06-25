@@ -1,0 +1,174 @@
+<!--index.wxml-->
+<navigation-bar title="照片动态加水印" back="{{false}}" color="black" background="#FFF"></navigation-bar>
+<view class="page-container">
+  <!-- TAB 切换栏 -->
+  <view class="tab-bar">
+    <view class="tab-item {{activeTab === 'watermark' ? 'active' : ''}}" bindtap="switchTab" data-tab="watermark">
+      <text>📷 图片加水印</text>
+    </view>
+    <view class="tab-item {{activeTab === 'vediodb' ? 'active' : ''}}" bindtap="switchTab" data-tab="vediodb">
+      <text>🎬 视频去水印</text>
+    </view>
+  </view>
+
+  <!-- ==================== TAB: 图片加水印 ==================== -->
+  <view class="container" wx:if="{{activeTab === 'watermark'}}">
+    <!-- 文件上传区域 -->
+    <view class="upload-section">
+      <view wx:if="{{processedFileInfo}}">
+        <!-- 上传后的图片预览 -->
+        <view class="image-preview-container" style="max-height: {{imageContainerHeight}}; position: relative;">
+          <!-- 删除按钮 -->
+          <view bindtap="deleteImage" class="delete-btn">×</view>
+          <!-- 主方案：使用image标签显示处理后的图片，更稳定 -->
+          <image
+            src="{{processedFileInfo.path}}"
+            class="preview-img"
+            mode="aspectFit"
+            bindload="onImageLoadSuccess"
+            binderror="onImageLoadError"
+            bindtap="onImageTap"
+            style="{{imageStyle}}"
+          />
+        </view>
+      </view>
+      <view wx:elif="{{fileInfo}}">
+        <!-- 处理中的临时状态 -->
+        <view class="image-preview-container" style="max-height: {{imageContainerHeight}}; justify-content: center; align-items: center;">
+          <text>正在处理图片...</text>
+        </view>
+      </view>
+      <view wx:else bindtap="uploadFile" class="upload-area">
+        <!-- 初始上传区域 -->
+        <view class="camera-icon">
+          <text style="font-size: 100rpx;">📷</text>
+        </view>
+        <text class="upload-text">点击此处，上传需要加水印的照片</text>
+      </view>
+    </view>
+
+    <!-- 水印设置区域 -->
+    <view class="watermark-section">
+      <!-- 水印文字输入 -->
+      <view class="input-item">
+        <text class="input-label">文字:</text>
+        <input type="text" value="{{watermarkText}}" bindinput="onWatermarkTextChange" class="watermark-input" placeholder="请输入水印文字" />
+      </view>
+
+      <!-- 水印颜色选择 -->
+      <view class="input-item">
+        <text class="input-label">颜色:</text>
+        <view class="color-buttons">
+          <view wx:for="{{colorList}}" wx:key="index"
+                class="color-btn"
+                style="background-color: {{item}}; {{colorIndex === index ? 'border: 2px solid #000;' : ''}}"
+                bindtap="onColorChange"
+                data-index="{{index}}">
+          </view>
+        </view>
+      </view>
+
+      <!-- 字体大小设置 -->
+      <view class="input-item">
+        <text class="input-label">大小:</text>
+        <view class="font-size-controls">
+          <view bindtap="decreaseFontSize" class="font-size-btn decrease-btn">-</view>
+          <view class="font-size-value">{{watermarkSize}}px</view>
+          <view bindtap="increaseFontSize" class="font-size-btn increase-btn">+</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 操作按钮区域 -->
+    <view class="button-section">
+      <button bindtap="previewWatermark" class="action-btn preview-btn">预览</button>
+      <button bindtap="saveFile" class="action-btn save-btn">保存</button>
+      <button bindtap="shareImage" class="action-btn share-btn">分享</button>
+    </view>
+  </view>
+
+  <!-- ==================== TAB: 豆包视频去水印 ==================== -->
+  <view class="vediodb-container" wx:if="{{activeTab === 'vediodb'}}">
+    <!-- 链接输入区域 -->
+    <view class="vediodb-card">
+      <view class="vediodb-input-group">
+        <textarea
+          value="{{vediodbUrl}}"
+          bindinput="onVediodbUrlInput"
+          class="vediodb-textarea"
+          rows="3"
+          placeholder="在此粘贴视频分享链接..."
+          auto-height
+        />
+      </view>
+      <view class="vediodb-actions">
+        <button bindtap="pasteFromClipboard" class="vediodb-btn vediodb-btn-outline">📋 粘贴</button>
+        <button bindtap="clearVediodbInput" class="vediodb-btn vediodb-btn-outline">✕ 清空</button>
+        <button bindtap="parseVediodbVideo" class="vediodb-btn vediodb-btn-primary" disabled="{{vediodbStatus === 'loading'}}">
+          <text wx:if="{{vediodbStatus === 'loading'}}">⏳ 解析中...</text>
+          <text wx:else>🔍 解析视频</text>
+        </button>
+      </view>
+
+      <!-- 状态提示 -->
+      <view class="vediodb-status vediodb-status--{{vediodbStatus}}" wx:if="{{vediodbStatus}}">
+        <text>{{vediodbStatusMsg}}</text>
+      </view>
+      <view class="vediodb-notice" wx:if="{{!vediodbStatus}}">
+        <text>视频归平台及作者所有，本工具不存储任何视频</text>
+      </view>
+    </view>
+
+    <!-- 视频播放区域（解析成功后显示） -->
+    <view class="vediodb-card" wx:if="{{vediodbShowVideo && vediodbResult}}">
+      <view class="vediodb-video-wrapper">
+        <video
+          src="{{vediodbResult.body.video_info.url_bk || vediodbResult.body.video_info.url_dl || vediodbResult.body.video_info.url}}"
+          poster="{{vediodbResult.body.video_info.cover || vediodbResult.body.cover}}"
+          class="vediodb-video"
+          controls
+          playsinline
+          show-center-play-btn
+          object-fit="contain"
+        />
+      </view>
+      <view class="vediodb-info-bar">
+        <text class="vediodb-tag">{{vediodbResult.body.type === 2 ? '🎬 视频' : '🖼️ 图集'}}</text>
+      </view>
+      <view class="vediodb-actions">
+        <button bindtap="saveVediodbVideo" class="vediodb-btn vediodb-btn-primary">💾 保存视频</button>
+        <button bindtap="copyVediodbLink" data-url="{{vediodbResult.body.video_info.url_dl || vediodbResult.body.video_info.url}}" class="vediodb-btn vediodb-btn-outline">📎 复制链接</button>
+      </view>
+    </view>
+
+    <!-- 下载链接列表（解析成功后显示） -->
+    <view class="vediodb-card" wx:if="{{vediodbShowVideo && vediodbResult}}">
+      <view class="vediodb-dl-title">📥 下载链接</view>
+      <view class="vediodb-dl-list">
+        <!-- 视频直链 -->
+        <view class="vediodb-dl-item" wx:if="{{vediodbResult.body.video_info.url_dl}}">
+          <text class="vediodb-dl-label">🎬 视频直链</text>
+          <button bindtap="copyVediodbLink" data-url="{{vediodbResult.body.video_info.url_dl}}" class="vediodb-btn vediodb-btn-sm vediodb-btn-outline">复制</button>
+        </view>
+        <!-- 备用链接 -->
+        <view class="vediodb-dl-item" wx:if="{{vediodbResult.body.video_info.url_bk}}">
+          <text class="vediodb-dl-label">🔄 备用链接</text>
+          <button bindtap="copyVediodbLink" data-url="{{vediodbResult.body.video_info.url_bk}}" class="vediodb-btn vediodb-btn-sm vediodb-btn-outline">复制</button>
+        </view>
+        <!-- 图片列表 -->
+        <view class="vediodb-dl-item" wx:for="{{vediodbResult.body.images}}" wx:key="index" wx:for-item="img">
+          <text class="vediodb-dl-label">🖼️ 图片{{index + 1}}</text>
+          <button bindtap="saveVediodbImage" data-url="{{img}}" class="vediodb-btn vediodb-btn-sm vediodb-btn-primary">保存</button>
+        </view>
+        <!-- 文案 -->
+        <view class="vediodb-dl-item" wx:if="{{vediodbResult.body.text}}">
+          <text class="vediodb-dl-label">📝 文案</text>
+          <button bindtap="copyVediodbText" data-text="{{vediodbResult.body.text}}" class="vediodb-btn vediodb-btn-sm vediodb-btn-outline">复制</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 隐藏的canvas，用于处理图片水印 -->
+<canvas canvas-id="watermarkCanvas" id="watermarkCanvas" style="{{canvasStyle}}"></canvas>
